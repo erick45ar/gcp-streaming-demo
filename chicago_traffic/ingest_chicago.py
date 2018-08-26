@@ -25,16 +25,15 @@ from urllib2 import urlopen
 from google.cloud import storage
 from google.cloud.storage import Blob
 
-
-def download (name1, name2, destdir):
+def download(YEAR, MONTH, destdir):
    '''
      Downloads on-time performance data and returns local filename
    '''
-   logging.info('Requesting data for {}-{}-*'.format(name1, name2))
+  logging.info('Requesting data for {}-{}-*'.format(YEAR, MONTH))
    
    url='https://data.cityofchicago.org/api/views/n4j6-wkkf/rows.csv?accessType=DOWNLOAD'
    
-   filename = os.path.join(destdir, "{}{}.csv".format(name1, name2))
+   filename = os.path.join(destdir, "{}{}.csv".format(YEAR, MONTH))
    with open(filename, "wb") as fp:
      response = urlopen(url)
      fp.write(response.read())
@@ -58,35 +57,63 @@ def upload(filename, bucketname, blobname):
    logging.info('Uploaded {} ...'.format(gcslocation))
    return gcslocation
 
-def ingest(bucket):
+def ingest(year, month, bucket):
    '''
-   ingest chicago data from chicago traffic website to Google Cloud Storage
+   ingest flights data from BTS website to Google Cloud Storage
    return cloud-storage-blob-name on success.
-   raises DataUnavailable if this data is not on chicago website
+   raises DataUnavailable if this data is not on BTS website
    '''
    tempdir = tempfile.mkdtemp(prefix='ingest_chicago')
    try:
-      filename = download(name1, name2, tempdir)
-      gcsloc = 'chicagodata/raw/{}'.format(os.path.basename(filename))
-      return upload(filename, bucket, gcsloc)
+      rawfile = download(year, month, tempdir)
+      verify_ingest(rawfile)
+      gcsloc = 'chicagodata/raw/{}'.format(os.path.basename(rawfile))
+      return upload(rawfile, bucket, gcsloc)
    finally:
       logging.debug('Cleaning up by removing {}'.format(tempdir))
       shutil.rmtree(tempdir)
+   
+   
+def next_month(bucketname):
+   '''
+     Finds which months are on GCS, and returns next year,month to download
+   '''
+   client = storage.Client()
+   bucket = client.get_bucket(bucketname)
+   blobs  = list(bucket.list_blobs(prefix='chicagodata/raw/'))
+   files = [blob.name for blob in blobs if 'csv' in blob.name] # csv files only
+   lastfile = os.path.basename(files[-1])
+   logging.debug('The latest file on GCS is {}'.format(lastfile))
+   year = lastfile[:4]
+   month = lastfile[4:6]
+   return compute_next_month(year, month)
 
-            
-import argparse
-   parser = argparse.ArgumentParser(description='ingest traffic data from Chicago website to Google Cloud Storage')
-   parser.add_argument('--bucket', help='GCS bucket to upload data to', required=True)
-   parser.add_argument('--name1')
-   parser.add_argument('--name2')
+
+def compute_next_month(year, month):
+   dt = datetime.datetime(int(year), int(month), 15) # 15th of month
+   dt = dt + datetime.timedelta(30) # will always go to next month
+   logging.debug('The next month is {}'.format(dt))
+   return '{}'.format(dt.year), '{:02d}'.format(dt.month)
   
+ 
+if __name__ == '__main__':
+   import argparse
+   parser = argparse.ArgumentParser(description='ingest traffic data from chicago website to Google Cloud Storage')
+   parser.add_argument('--bucket', help='GCS bucket to upload data to', required=True)
+   parser.add_argument('--year', help='Example: 2015.  If not provided, defaults to getting next month')
+   parser.add_argument('--month', help='Specify 01 for January. If not provided, defaults to getting next month')
+
    try:
       logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-      args = parser.parse_args() 
-      logging.debug('Ingesting bucket={}'.format(bucket))
-      gcsfile = ingest(args.bucket)
+      args = parser.parse_args()
+      if args.year is None or args.month is None:
+         year, month = next_month(args.bucket)
+      else:
+         year = args.year
+         month = args.month
+      logging.debug('Ingesting year={} month={}'.format(year, month))
+      gcsfile = ingest(year, month, args.bucket)
       logging.info('Success ... ingested to {}'.format(gcsfile))
    except DataUnavailable as e:
       logging.info('Try again later: {}'.format(e.message))
-
 
