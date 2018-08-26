@@ -77,6 +77,8 @@ def ingest(bucket):
 import argparse
    parser = argparse.ArgumentParser(description='ingest traffic data from Chicago website to Google Cloud Storage')
    parser.add_argument('--bucket', help='GCS bucket to upload data to', required=True)
+   parser.add_argument('--name1')
+   parser.add_argument('--name2')
   
    try:
       logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
