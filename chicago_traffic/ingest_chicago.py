@@ -28,11 +28,11 @@ from google.cloud.storage import Blob
 def download(YEAR, MONTH, destdir):
    '''
      Downloads on-time performance data and returns local filename
+     YEAR e.g.'2015'
+     MONTH e.g. '01 for January
    '''
-  logging.info('Requesting data for {}-{}-*'.format(YEAR, MONTH))
-   
+   logging.info('Requesting data for {}-{}-*'.format(YEAR, MONTH))
    url='https://data.cityofchicago.org/api/views/n4j6-wkkf/rows.csv?accessType=DOWNLOAD'
-   
    filename = os.path.join(destdir, "{}{}.csv".format(YEAR, MONTH))
    with open(filename, "wb") as fp:
      response = urlopen(url)
@@ -66,7 +66,7 @@ def ingest(year, month, bucket):
    tempdir = tempfile.mkdtemp(prefix='ingest_chicago')
    try:
       rawfile = download(year, month, tempdir)
-      verify_ingest(rawfile)
+      verify_ingest = (rawfile)
       gcsloc = 'chicagodata/raw/{}'.format(os.path.basename(rawfile))
       return upload(rawfile, bucket, gcsloc)
    finally:
@@ -116,4 +116,5 @@ if __name__ == '__main__':
       logging.info('Success ... ingested to {}'.format(gcsfile))
    except DataUnavailable as e:
       logging.info('Try again later: {}'.format(e.message))
+
 
