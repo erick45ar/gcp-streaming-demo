@@ -1,0 +1,6 @@
+cron:
+- description : ingest chicago traffic data
+  url : /ingest
+  schedule: every 15 mins
+  timezone: US/Eastern
+  target: chicago
